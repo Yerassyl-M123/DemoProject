@@ -34,6 +34,7 @@ type users struct {
 var db *sql.DB
 
 func main() {
+	// test
 	var err error
 	err = godotenv.Load()
 	if err != nil {
