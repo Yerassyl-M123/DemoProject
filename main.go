@@ -34,7 +34,6 @@ type users struct {
 var db *sql.DB
 
 func main() {
-	// test
 	var err error
 	err = godotenv.Load()
 	if err != nil {
@@ -70,6 +69,8 @@ func main() {
 	server.POST("/delete", authRequired(deleteItemByID))
 	server.POST("/basket", authRequired(addToBasket))
 	server.POST("/confirm", confirmBasket)
+	server.POST("/removeFromBasket", authRequired(removeFromBasket))
+	server.GET("/orderHistory", authRequired(orderHistoryPage))
 
 	server.GET("/signUpPage", signUpPage)
 	server.POST("/signup", signUp)
@@ -295,6 +296,7 @@ func addToBasket(c *gin.Context) {
 
 func confirmBasket(c *gin.Context) {
 	session := sessions.Default(c)
+	userID := session.Get("user_id")
 	userEmail := session.Get("user_email")
 	basket := session.Get("basket")
 
@@ -311,6 +313,11 @@ func confirmBasket(c *gin.Context) {
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		_, err = db.Exec("INSERT INTO order_history (user_id, item_name, item_price) VALUES ($1, $2, $3)", userID, i.Name, i.Price)
+		if err != nil {
+			log.Fatal(err)
+		}
 		body += fmt.Sprintf("Name: %s, Price: %d\n", i.Name, i.Price)
 		totalPrice += i.Price
 	}
@@ -322,6 +329,59 @@ func confirmBasket(c *gin.Context) {
 	}
 
 	session.Delete("basket")
+	session.Save()
+
+	c.Redirect(http.StatusFound, "/home")
+}
+
+func orderHistoryPage(c *gin.Context) {
+	session := sessions.Default(c)
+	userID := session.Get("user_id")
+
+	rows, err := db.Query("SELECT item_name, item_price, order_date FROM order_history WHERE user_id = $1 ORDER BY order_date DESC", userID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	var orders []map[string]interface{}
+	for rows.Next() {
+		var itemName string
+		var itemPrice int
+		var orderDate time.Time
+		if err := rows.Scan(&itemName, &itemPrice, &orderDate); err != nil {
+			log.Fatal(err)
+		}
+		orders = append(orders, map[string]interface{}{
+			"item_name":  itemName,
+			"item_price": itemPrice,
+			"order_date": orderDate.Format("02 Jan 2006 15:04"),
+		})
+	}
+
+	c.HTML(http.StatusOK, "history.html", gin.H{
+		"orders": orders,
+	})
+}
+
+func removeFromBasket(c *gin.Context) {
+	itemID := c.PostForm("item-id")
+	session := sessions.Default(c)
+	basket := session.Get("basket")
+
+	if basket == nil {
+		c.Redirect(http.StatusFound, "/home")
+		return
+	}
+
+	var updatedBasket []string
+	for _, id := range basket.([]string) {
+		if id != itemID {
+			updatedBasket = append(updatedBasket, id)
+		}
+	}
+
+	session.Set("basket", updatedBasket)
 	session.Save()
 
 	c.Redirect(http.StatusFound, "/home")

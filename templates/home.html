@@ -50,7 +50,12 @@
     <h1>Basket</h1>
     <ul>
         {{range .basket}}
-            <li>Name: {{.Name}}, Price: {{.Price}}</li>
+            <li>Name: {{.Name}}, Price: {{.Price}}
+                <form action="/removeFromBasket" method="POST" style="display:inline;">
+                    <input type="hidden" name="item-id" value="{{ .ID }}">
+                    <button type="submit">Delete</button>
+                </form>
+            </li>
         {{else}}
             <li>No items in basket</li>
         {{end}}
@@ -64,5 +69,10 @@
     <form action="/logout" method="get">
         <button type="submit">Logout</button>
     </form>
+    
+    <form action="/orderHistory" method="get">
+        <button type="submit">View Order History</button>
+    </form>
+    
 </body>
 </html>
